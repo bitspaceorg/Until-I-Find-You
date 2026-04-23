@@ -1,0 +1,51 @@
+---
+title: "Extension Strategy"
+description: "How to add trackers, camera backends, inference backends, and transports."
+slug: "architecture-extension"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["architecture", "extension"]
+---
+
+## Add a tracker
+
+1. Create `crates/uify-<name>/` with `Cargo.toml` depending on
+   `uify-core` and `nalgebra`.
+2. Pick the geometric primitive `G` and its covariance type `C`.
+3. Implement `uify_core::Tracker` with `Geometry = G`, `Covariance = C`.
+4. Add property tests for the associated manifold (if any) in
+   `crates/uify-core/tests/`.
+5. Add a synthetic GT scene for the new tracker under `tests/synthetic/`.
+6. Register the crate in the workspace `Cargo.toml` and (if the CLAP
+   plugin should expose it) in `uify-clap-plugin`.
+7. Document at `docs/reference/trackers/<name>.mdx`.
+
+## Add a camera backend
+
+1. Implement `uify_runtime::camera::Backend` in a new module
+   `uify-runtime/src/camera/<platform>.rs`, feature-gated by
+   `#[cfg(target_os = "...")]`.
+2. Deliver frames zero-copy where possible.
+3. Add platform-specific system dependencies to `nix/uify.nix`.
+4. Document at `docs/development/platform.mdx`.
+
+## Add an inference backend
+
+1. Add an execution provider to `uify-runtime::inference` behind a
+   Cargo feature.
+2. Expose per-EP tolerances in the GT suite; do not compare numeric
+   outputs across backends with `==`.
+3. Document at `docs/reference/runtime/inference.mdx`.
+
+## Add a transport
+
+1. Create `crates/uify-transport-<name>/`.
+2. Implement `Sink<G, C>` for the relevant `G`s.
+3. Document the wire schema at `docs/reference/transports/<name>.mdx`.
+
+## Add a language binding
+
+1. Use `UniFFI` for Swift / Kotlin, `pyo3` for Python, `wasm-bindgen` for
+   web, `napi-rs` for Node.
+2. Regenerate the binding artifact in CI and attach to releases.
+3. Document at `docs/reference/ffi/<language>.mdx`.

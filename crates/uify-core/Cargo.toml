@@ -1,0 +1,22 @@
+[package]
+name = "uify-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Core types, manifold math, filters, and tracker abstractions. No I/O."
+
+[dependencies]
+nalgebra.workspace = true
+num-traits.workspace = true
+approx.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+criterion.workspace = true
+
+[features]
+default = ["std"]
+std = []

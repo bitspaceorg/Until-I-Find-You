@@ -1,0 +1,53 @@
+---
+title: "Pipeline"
+description: "The five-stage tracker pipeline: source, detector, associator, filter, smoother, sink."
+slug: "architecture-pipeline"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["architecture", "pipeline"]
+---
+
+Every tracker is a composition of stages:
+
+```
+Source ──► Detector ──► Associator ──► Filter ──► Smoother ──► Sink
+frames    per-frame     bind detections  recursive  (optional    OSC / MIDI
+          detections    to tracks         estimate   offline)     / shm / CLAP
+```
+
+**Source** — camera or video file. Emits `Frame` values with a host-monotonic
+timestamp.
+
+**Detector** — converts a frame into zero-or-more measurements (points,
+boxes, landmarks, masks). Typically a neural net invoked through the runtime
+inference layer. Stateless across frames.
+
+**Associator** — given the current set of measurements and the current set of
+tracked instances, decide which measurement belongs to which track. Hungarian
+assignment on IoU / Mahalanobis distance / feature similarity. Returns
+(measurement, track_id) pairs plus a list of birthed / dead tracks.
+
+**Filter** — recursive estimator. For vector states, a standard Kalman filter;
+for group states (SE(3), SL(3), etc.), the EKF-on-manifold in
+`uify-core::filters::ekf_manifold`. Produces the online sample stream.
+
+**Smoother** — optional backward pass (RTS on the manifold) used offline for
+post-processing, rotoscope refinement, and dataset cleanup.
+
+**Sink** — emits `Sample<G, C>` values to consumers via a transport or
+directly into the CLAP plugin's ring buffer.
+
+## Swappability
+
+Each stage is a trait. Swapping, say, the detector from MediaPipe Hands to a
+distilled custom model does not touch the filter or the sink. Swapping the
+filter from an EKF to a UKF does not touch the detector. This is the payoff
+for the uniform `Sample<G, C>` contract at every stage boundary.
+
+## Where stages live
+
+- **Source, Sink**: `uify-runtime` and `uify-transport-*`.
+- **Detector**: the tracker crate (`uify-point`, `uify-face`, etc.)
+  owns its detector because the detector output type is tracker-specific.
+- **Associator, Filter, Smoother**: `uify-core` for the generic forms;
+  tracker crates for any tracker-specific specializations.

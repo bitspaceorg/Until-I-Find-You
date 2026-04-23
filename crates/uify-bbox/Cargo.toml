@@ -1,0 +1,13 @@
+[package]
+name = "uify-bbox"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Bounding-box tracker (axis-aligned + oriented)."
+
+[dependencies]
+uify-core.workspace = true
+nalgebra.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

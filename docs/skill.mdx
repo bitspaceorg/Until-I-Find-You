@@ -1,0 +1,139 @@
+---
+title: "UIFY Skill — Build Anything"
+description: "Self-contained source of truth for building with UIFY. Read this first."
+slug: "skill"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["skill", "guide", "reference", "source-of-truth"]
+---
+
+This page is the **single entry point** for building with UIFY. It is
+self-contained for the common path — an agent or human can complete ~90% of
+typical tasks without leaving this document. Links go out only for deep
+material (EKF-on-manifold derivation, CLAP internals, per-platform camera
+backend quirks).
+
+If something in this document contradicts a reference doc, the code wins; file
+an issue or fix the doc.
+
+## What UIFY is
+
+A Rust engine that turns camera input into a time-indexed stream of geometric
+primitives, with optional real-time transport to other programs. Five built-in
+trackers, all implementing one trait:
+
+| Tracker      | Geometry `G`             | Typical consumer                     |
+| ------------ | ------------------------ | ------------------------------------ |
+| point (ball) | `Vec2` / `Vec3`          | audio automation, cursor control     |
+| bounding box | `(SE(2), w, h)`          | detection gating, VFX masks          |
+| plane        | `SE(3)` + homography     | AR, virtual camera body, compositing |
+| face         | landmarks + `SE(3)` pose | expression capture, retargeting      |
+| rotoscope    | contour / mask           | matte extraction, VFX                |
+
+Every tracker produces `Sample<G, C>` values — value, tangent-space
+covariance, confidence, host-monotonic timestamp.
+
+## 60-second quick start
+
+```bash
+# Development shell (Nix). Installs Rust toolchain, pre-commit hooks.
+nix develop
+
+# Build the workspace.
+make
+
+# Run the full test suite (unit + property + synthetic GT).
+make test
+
+# Lint (clippy warnings = errors).
+make lint
+
+# Build the CLAP plugin bundle.
+make clap
+
+# Format everything.
+treefmt
+```
+
+## The one abstraction
+
+Every tracker is this:
+
+```rust
+pub trait Tracker {
+    type Geometry;
+    type Covariance;
+    type Measurement<'a>;
+
+    fn step(&mut self, measurement: Self::Measurement<'_>)
+        -> Result<Option<Sample<Self::Geometry, Self::Covariance>>, TrackerError>;
+
+    fn reset(&mut self);
+}
+```
+
+Different trackers differ only in `Geometry` and `Covariance`. The pipeline
+around them — detector, associator, filter, smoother, sink — is the same shape.
+
+## Minimal pipeline (point tracker)
+
+```rust
+use uify_core::Sample;
+use uify_point::PointTracker;
+
+// Construct, feed frames, get samples.
+let mut t = PointTracker::new(/* config */);
+
+loop {
+    let frame = camera.next_frame()?;                // runtime::camera
+    if let Some(sample) = t.step(&frame)? {          // Sample<Vec2, Mat2>
+        sink.send(sample)?;                           // OSC / MIDI / shm / CLAP param
+    }
+}
+```
+
+## DAW hand-control example (the flagship)
+
+```
+Camera → HandLandmarker → GestureFSM → ParameterMap → CLAP plugin params
+                              │
+                              └─ states: idle, grab, hold, release
+```
+
+The `GestureFSM` is a _consumer_ of tracker samples, not part of the tracker.
+That keeps the same hand tracker reusable for non-DAW consumers. See
+`examples/daw-hand-control/` for the full source.
+
+## Latency + accuracy rules of thumb
+
+- Audio thread **never allocates, never locks, never blocks on I/O**. It
+  reads `rtrb` and interpolates in the tangent space to the block time.
+- Every sample has a **host-monotonic timestamp**. Latency is measured,
+  not guessed.
+- Every filter lives on the correct manifold. **Do not** average quaternions
+  componentwise. See [architecture-manifolds](architecture-manifolds).
+- Every sample carries covariance. Consumers should gate on uncertainty.
+
+Glass-to-parameter target: **~15–25 ms** baseline, **~8–12 ms** with
+distilled models + zero-copy capture. Below ~8 ms requires a 240 Hz camera.
+
+## Gotchas
+
+- CoreML / DirectML / NNAPI have different `f16` / `f32` tolerances. The
+  synthetic GT suite runs per-backend; do not compare numeric outputs across
+  backends with `==`.
+- CLAP hosts reload plugins during scan. Global state in `static mut` is a
+  bug waiting to happen — keep all mutable state in the `Plugin` instance.
+- The GHC RTS is not involved. If you find yourself writing FFI glue for a
+  garbage-collected runtime on the audio thread, stop.
+
+## Extending
+
+- **Add a tracker**: new crate under `crates/uify-<name>/`, implement
+  `Tracker`, register in `uify-clap-plugin` if it should drive parameters.
+- **Add a transport**: new crate under `crates/uify-transport-<name>/`.
+  Consume `Sample<G, C>` via a `Sink` impl.
+- **Add a platform**: implement the `camera::Backend` trait and feature-gate
+  in `uify-runtime`.
+
+See [architecture-extension](architecture-extension) for the full guide.

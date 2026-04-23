@@ -1,0 +1,28 @@
+---
+title: "Development"
+description: "Build system, platform support, testing, contributing."
+slug: "development"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["development"]
+---
+
+| Page                                     | Topic                                         |
+| ---------------------------------------- | --------------------------------------------- |
+| [Build](development-build)               | Make + Nix + Cargo                            |
+| [Platform](development-platform)         | macOS / Windows / Linux / iOS / Android / Web |
+| [Testing](development-testing)           | Property tests, synthetic GT suite, bench     |
+| [Contributing](development-contributing) | How to add code and documentation             |
+
+## Roadmap (v0.1 → v0.3)
+
+1. **v0.1 — foundation.** Core manifold math, KF/EKF, property tests,
+   synthetic GT suite. No camera, no plugin.
+2. **v0.2 — first end-to-end slice on macOS.** AVFoundation → point
+   detector (CoreML) → EKF → ring buffer → CLAP plugin → one parameter
+   driven in a host DAW.
+3. **v0.3 — fan out.** Remaining trackers (bbox, plane, face, roto),
+   remaining platforms (Windows, Linux, iOS, Android, Web), DAW
+   hand-control example.
+
+See [development/build](development-build) for how to build each piece.

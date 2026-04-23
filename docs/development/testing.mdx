@@ -1,0 +1,57 @@
+---
+title: "Testing"
+description: "Property tests, synthetic GT suite, criterion benches, Tracy profiling."
+slug: "development-testing"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["development", "testing"]
+---
+
+Three layers of test. All three are required for any change to accuracy- or
+latency-critical code.
+
+## 1. Property tests (fast, per-PR)
+
+Manifold identities are property-tested with `proptest` — see
+[architecture-manifolds](architecture-manifolds) for the required identities.
+Run:
+
+```bash
+make test
+```
+
+## 2. Synthetic GT suite (slower, nightly)
+
+Blender-rendered scenes with known 6DoF, point, contour, and face
+trajectories. Each tracker has a minimum accuracy bar that regressions
+must not cross:
+
+- SE(3) pose: rotation error < 0.5°, translation error < 1% over 95% of frames.
+- Point tracker: mean 2D error < 0.5 px.
+- Face pose: rotation error < 2°.
+
+Scenes live at `tests/synthetic/scenes/`. Ground truth is serialized
+alongside each render.
+
+## 3. Criterion benches (latency)
+
+```bash
+make bench
+```
+
+Targets:
+
+- `uify-core::filters::ekf_manifold::bench_step` — < 10 µs per step.
+- `uify-runtime::ringbuf::bench_read` — < 100 ns per read.
+- End-to-end `uify-clap-plugin::bench_frame_cycle` — budget per stage.
+
+## Live profiling
+
+Tracy is wired in via `tracy-client`. To enable in a dev build:
+
+```bash
+make CARGO_FEATURES="tracy"
+```
+
+A Tracy session visualizes per-frame timing for every stage on every thread.
+Use this to diagnose latency regressions before the bench notices them.

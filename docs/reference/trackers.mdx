@@ -1,0 +1,33 @@
+---
+title: "Reference — Trackers"
+description: "Built-in trackers: point, bounding box, plane, face, rotoscope."
+slug: "reference-trackers"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["reference", "trackers"]
+---
+
+Each tracker is an independent crate under `crates/uify-<name>/` implementing `uify_core::Tracker`.
+
+| Crate        | `G`                               | Online detector                             |
+| ------------ | --------------------------------- | ------------------------------------------- |
+| `uify-point` | `Vec2` / `Vec3`                   | color-blob, learned keypoint, or user seed  |
+| `uify-bbox`  | `(SE(2), w, h)` / `(x,y,w,h)`     | YOLOv8 / RT-DETR                            |
+| `uify-plane` | `SE(3)` (+ homography in SL(3))   | SuperPoint + LightGlue; PnP with intrinsics |
+| `uify-face`  | landmarks + `SE(3)` + blendshapes | MediaPipe FaceLandmarker (ONNX export)      |
+| `uify-roto`  | contour / signed-distance mask    | SAM2 video segmentation                     |
+
+Each tracker owns:
+
+- its detector
+- its measurement-to-state mapping (`h`)
+- its process model (`f`)
+- a default filter configuration
+
+Tracker-specific reference pages (TODO):
+
+- `reference/trackers/point.mdx`
+- `reference/trackers/bbox.mdx`
+- `reference/trackers/plane.mdx`
+- `reference/trackers/face.mdx`
+- `reference/trackers/roto.mdx`

@@ -1,0 +1,13 @@
+[package]
+name = "uify-roto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Rotoscoping: contour / mask tracker (SAM2-driven) with offline smoother."
+
+[dependencies]
+uify-core.workspace = true
+nalgebra.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

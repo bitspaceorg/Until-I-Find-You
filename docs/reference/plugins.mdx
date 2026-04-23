@@ -1,0 +1,36 @@
+---
+title: "Reference — Plugins"
+description: "CLAP plugin (primary), AU / VST3 wrappers."
+slug: "reference-plugins"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["reference", "plugins", "clap"]
+---
+
+Crate: `uify-clap-plugin`. Built as a `cdylib` and bundled by `make clap`.
+
+## CLAP
+
+Primary target. Hosts the vision thread inside the plugin process; audio
+thread reads the lock-free ring buffer and interpolates to block time.
+
+Parameters exposed (v0.1):
+
+| Range  | Mapped to                               |
+| ------ | --------------------------------------- |
+| 0..15  | point tracker: x, y, z (×1 tracker)     |
+| 16..31 | bbox: cx, cy, w, h, θ per track         |
+| 32..63 | plane: tx, ty, tz, rx, ry, rz per plane |
+
+Binding is configurable at runtime through the plugin's GUI (phase 2).
+
+## AU / VST3
+
+Derived from CLAP via [clap-wrappers](https://github.com/free-audio/clap-wrappers).
+Emitted by `make au` and `make vst3`.
+
+## Threading
+
+See [architecture-threading](architecture-threading). The audio-thread path
+is allocation-free and lock-free by construction; any PR that adds a
+`format!`, `Mutex`, or other blocking call to that path is rejected.

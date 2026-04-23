@@ -1,0 +1,12 @@
+[package]
+name = "uify-transport-shm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Shared-memory transport for sub-ms same-machine IPC consumers."
+
+[dependencies]
+uify-core.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

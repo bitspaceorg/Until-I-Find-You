@@ -1,0 +1,11 @@
+target/
+result
+result-*
+.direnv
+.pre-commit-config.yaml
+.DS_Store
+*.onnx
+*.mlpackage
+tests/synthetic/renders/
+examples/target/
+__pycache__/

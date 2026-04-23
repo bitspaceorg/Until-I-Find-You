@@ -1,0 +1,12 @@
+[package]
+name = "uify-transport-midi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "MIDI / MPE transport. Hand/face expression mapped to per-note controllers."
+
+[dependencies]
+uify-core.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

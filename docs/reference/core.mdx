@@ -1,0 +1,36 @@
+---
+title: "Reference — Core"
+description: "uify-core: Sample, Tracker trait, manifolds, filters, pipeline stages."
+slug: "reference-core"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["reference", "core"]
+---
+
+Crate: `uify-core`. I/O-free. Safe on any thread including the audio thread.
+
+## Top-level
+
+- `Sample<G, C>` — time-indexed tracker output (value, covariance, confidence, timestamp).
+- `Timestamp` — host-monotonic nanoseconds.
+- `Confidence` — `[0, 1]` clamped.
+- `Tracker` — trait with `Geometry`, `Covariance`, `Measurement<'a>`, `step`, `reset`.
+- `TrackerError` — `Lost` / `Numerical` / `Backend`.
+
+## `manifolds::`
+
+- `LieGroup` trait — `identity`, `compose`, `inverse`, `exp`, `log`, `plus`, `minus`.
+- `so2`, `so3`, `se2`, `se3`, `sl3` — concrete groups.
+
+See [architecture-manifolds](architecture-manifolds) for conventions and
+property-test requirements.
+
+## `filters::`
+
+- `kalman` — classical linear KF, generic over state and measurement dim.
+- `ekf_manifold` — EKF on a Lie group, right-trivialized, left-Jacobian reset.
+- `rts_smoother` — offline backward pass.
+
+## `pipeline::`
+
+- `Stage` trait — generic stage in a tracker pipeline.

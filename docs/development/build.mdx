@@ -1,0 +1,45 @@
+---
+title: "Build"
+description: "Make + Nix + Cargo build system."
+slug: "development-build"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["development", "build"]
+---
+
+The top-level `Makefile` is a thin wrapper over `cargo`. Nix provides the
+toolchain and every system dependency; inside a Nix shell you do not need
+a system Rust install.
+
+## Quick reference
+
+```bash
+nix develop                 # enter dev shell (installs pre-commit hooks)
+make                        # debug build of the full workspace
+make release                # release build
+make test                   # cargo nextest — all crates
+make lint                   # clippy -D warnings
+make bench                  # criterion benches
+make clap                   # bundle the CLAP plugin
+make au                     # AU via clap-wrappers (macOS only)
+make vst3                   # VST3 via clap-wrappers
+make ffi                    # cdylib + generated C header
+make wasm                   # WASM target for uify-ffi
+make docs-check             # validate docs frontmatter + rebuild index
+make header                 # regenerate include/uify.h
+make clean                  # cargo clean + remove result*
+```
+
+## Without Nix
+
+```bash
+rustup toolchain install 1.83
+make                        # picks up rust-toolchain.toml
+```
+
+You will need to install system dependencies manually (ONNX Runtime,
+platform camera headers). See [platform](development-platform).
+
+## Layout
+
+See [architecture](architecture) for the crate dependency diagram.

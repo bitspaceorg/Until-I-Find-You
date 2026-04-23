@@ -1,0 +1,118 @@
+---
+title: "Architecture"
+description: "Layer contract, thread model, latency and accuracy rationale."
+slug: "architecture"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["architecture", "design"]
+---
+
+## Layer diagram
+
+```
+                     ┌──────────────────────────────┐
+                     │  Consumers                   │
+                     │  (DAW plugin, external apps) │
+                     └──────────────────────────────┘
+                                   ▲
+                   ┌───────────────┴────────────────┐
+                   │   Transports                   │
+                   │   OSC │ MIDI/MPE │ shm │ FFI   │
+                   └───────────────┬────────────────┘
+                                   ▲
+                   ┌───────────────┴────────────────┐
+                   │   Trackers                     │
+                   │   point │ bbox │ plane │ face  │
+                   │                      │ roto    │
+                   └───────────────┬────────────────┘
+                                   ▲
+                   ┌───────────────┴────────────────┐
+                   │   Core                         │
+                   │   Tracker trait, manifolds,    │
+                   │   filters, pipeline            │
+                   └───────────────┬────────────────┘
+                                   ▲
+                   ┌───────────────┴────────────────┐
+                   │   Runtime                      │
+                   │   camera │ inference │ ringbuf │
+                   └────────────────────────────────┘
+```
+
+**Dependency direction points up.** Core has zero I/O dependencies and is
+safe to run anywhere (including a real-time audio thread). Runtime owns all
+the OS and GPU integrations. Trackers compose core primitives and use
+runtime services through traits.
+
+No tracker ever imports another tracker. No transport ever imports a tracker
+directly — it consumes `Sample<G, C>` via a generic `Sink<G, C>` trait.
+
+## Crate layout
+
+```
+crates/
+  uify-core/            # no I/O; pure math + traits
+  uify-point/           # point trackers (ball, generic feature)
+  uify-bbox/            # bounding boxes (AA + oriented)
+  uify-plane/           # homography + PnP → SE(3)
+  uify-face/            # landmarks + SE(3) + blendshapes
+  uify-roto/            # contour / mask tracker
+  uify-runtime/         # cameras, inference, ring buffer
+  uify-transport-osc/   # OSC
+  uify-transport-midi/  # MIDI / MPE
+  uify-transport-shm/   # shared memory
+  uify-clap-plugin/     # CLAP (AU/VST3 via clap-wrappers)
+  uify-ffi/             # C ABI cdylib + generated header
+```
+
+## Pipeline
+
+See [pipeline](architecture-pipeline). Every tracker is:
+
+```
+Source → Detector → Associator → Filter → Smoother → Sink
+```
+
+Each stage is a trait with a single `step()` method. Stages compose; a
+detector can be swapped without touching the filter.
+
+## Thread model
+
+See [threading](architecture-threading). Three threads, strict roles, one
+lock-free bridge.
+
+- **Vision thread**: camera capture → GPU inference → manifold filter →
+  ring buffer push. Can allocate. May block on GPU.
+- **Audio thread (host-owned)**: reads the newest sample from `rtrb`,
+  interpolates in the tangent space to the block time, writes parameter
+  updates. **No allocations. No locks. No I/O.**
+- **UI thread**: viewport, configuration. Reads a snapshot of tracker
+  state; never the hot path.
+
+## Latency
+
+See [latency-budget](architecture-latency-budget). Glass-to-parameter:
+
+| Stage              | Typical   | Tightened |
+| ------------------ | --------- | --------- |
+| Capture → GPU      | 4–8 ms    | 2–3 ms    |
+| Inference          | 5–15 ms   | 2–5 ms    |
+| Filter + ring push | <0.2 ms   | <0.2 ms   |
+| Audio pickup       | ≤ block   | sub-block |
+| **Total**          | ~15–25 ms | ~8–12 ms  |
+
+## Accuracy
+
+See [manifolds](architecture-manifolds). Non-negotiables:
+
+- Camera intrinsics calibration for every 3D tracker.
+- Sub-pixel refinement on every point-like tracker.
+- Tangent-space EKF for every group-valued tracker.
+- RTS smoother for offline passes.
+- Synthetic Blender GT suite with property tests.
+
+## Extension strategy
+
+See [extension](architecture-extension). TL;DR: add a tracker by adding a
+crate that implements `Tracker`; add a transport by adding a crate with a
+`Sink<G, C>` impl; add a camera backend by implementing the `camera::Backend`
+trait in `uify-runtime`.

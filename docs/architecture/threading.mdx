@@ -1,0 +1,57 @@
+---
+title: "Threading Model"
+description: "Vision / audio / UI thread separation and the lock-free bridge."
+slug: "architecture-threading"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["architecture", "threading", "real-time"]
+---
+
+```
+┌─ vision thread ────────────────────────────┐   ┌─ audio thread (host-owned) ──┐
+│ camera ─► GPU inference ─► manifold filter │──▶│ ring-buffer read (wait-free) │
+│                                             │   │ interpolate to block time   │
+│                                             │   │ write automation events     │
+└─────────────────────────────────────────────┘   └──────────────────────────────┘
+                   │
+                   └──► UI thread (viewport, config) — read-only snapshot
+```
+
+## The audio thread
+
+This is where 90% of all real-time audio bugs live. Non-negotiable rules:
+
+1. **No allocation.** Not `Vec::push`, not `Box::new`, not `format!`, not a
+   `HashMap::insert`. Preallocate everything.
+2. **No locks.** Not `Mutex`, not `RwLock`, not `parking_lot`. Use `rtrb`
+   (wait-free SPSC) and atomic primitives.
+3. **No blocking I/O.** No file I/O, no network, no logging that writes to
+   a file. `tracing` events on the audio thread must route through a
+   lock-free channel.
+4. **No panics.** Panics in the audio thread are UB for the host.
+5. **Bounded work.** The callback must return in less than the block time,
+   every call, even in the worst case. Think in 99.9th-percentile terms.
+
+## Cross-thread communication
+
+- **Vision → Audio**: `rtrb` ring buffer carrying `Sample<G, C>` values.
+  Writer is the single vision-thread producer; reader is the audio thread.
+  Wait-free on the reader side.
+- **Audio → UI**: atomic snapshots of parameter state.
+- **UI → Vision**: a separate `rtrb` ring carrying commands (reconfigure,
+  reset, change model).
+
+## Timestamp discipline
+
+Every sample carries a host-monotonic `Timestamp`. The audio thread knows
+`now_audio - sample_timestamp` and interpolates accordingly, so latency is
+**measured**, not guessed. Interpolation happens in the tangent space of
+the relevant manifold — you cannot slerp a homography by blending matrix
+entries.
+
+## Why not async
+
+`tokio` and similar runtimes spawn worker threads that can starve an audio
+callback on a shared core and allocate unpredictably. They have no place in
+the real-time path. The vision thread can use a minimal runtime for GPU
+futures, but **the audio thread sees none of it**.

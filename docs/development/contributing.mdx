@@ -1,0 +1,46 @@
+---
+title: "Contributing"
+description: "How to add code and documentation."
+slug: "development-contributing"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["development", "contributing"]
+---
+
+## Before you start
+
+- `nix develop` — installs the toolchain and pre-commit hooks (treefmt +
+  docs validation + clippy).
+- Read [skill](skill) and [architecture](architecture).
+
+## Coding conventions
+
+- `rustfmt` is enforced. `clippy -D warnings` is enforced.
+- `#![forbid(unsafe_op_in_unsafe_fn)]` on every crate.
+- `#![warn(missing_docs)]` on public crates.
+- Comments explain **why**, not **what**. Identifiers and types are
+  expected to express intent.
+
+## Adding code
+
+Follow the guides in [architecture-extension](architecture-extension) for
+new trackers, transports, camera backends, and bindings.
+
+## Adding docs
+
+- Every MDX file needs frontmatter: `title`, `description`, `slug`, `author`,
+  `date`, `tags`.
+- Slugs are kebab-case and match the URL path (`architecture-threading`
+  for `docs/architecture/threading.mdx`).
+- `tools/docs/validate.py` enforces frontmatter shape and slug uniqueness;
+  the pre-commit hook runs it.
+- Cross-link by slug, not by path.
+
+## Pull request checklist
+
+- [ ] `make test` passes.
+- [ ] `make lint` passes.
+- [ ] `make bench` does not regress targeted paths by more than 20% without
+      justification in the PR description.
+- [ ] Synthetic GT accuracy bars hold (for any tracker-layer change).
+- [ ] Docs updated.

@@ -1,0 +1,35 @@
+---
+title: "Reference — Transports"
+description: "OSC, MIDI / MPE, shared memory."
+slug: "reference-transports"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["reference", "transports"]
+---
+
+Every transport implements `Sink<G, C>` for the `G`s it makes sense for.
+
+## OSC — `uify-transport-osc`
+
+Address schema (default; configurable):
+
+```
+/uify/<id>/point        fff       (x, y, z) or (x, y, 0)
+/uify/<id>/bbox         ffff f    (cx, cy, w, h, θ)
+/uify/<id>/pose         fff ffff  (tx, ty, tz, qx, qy, qz, qw)
+/uify/<id>/landmark/<i> fff       per-landmark
+/uify/<id>/confidence   f
+/uify/<id>/timestamp    h         nanoseconds, host-monotonic
+```
+
+## MIDI / MPE — `uify-transport-midi`
+
+Per-note expressive control. Hand-to-note mapping uses MPE's per-note
+pitch-bend (X), timbre (Y), and pressure (Z). Note-on / note-off are driven
+by the GestureFSM in the consumer.
+
+## Shared memory — `uify-transport-shm`
+
+POSIX / Win32 shared-memory segment with a header + ring of `Sample` records.
+For same-machine consumers that need µs-scale latency. See
+`reference/transports/shm.mdx` (TODO) for the binary layout.

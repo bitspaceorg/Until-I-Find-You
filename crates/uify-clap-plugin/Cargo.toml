@@ -1,0 +1,25 @@
+[package]
+name = "uify-clap-plugin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "CLAP plugin exposing tracker outputs as real-time automatable parameters. AU/VST3 derived via clap-wrappers."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+uify-core.workspace = true
+uify-runtime.workspace = true
+uify-point.workspace = true
+uify-bbox.workspace = true
+uify-plane.workspace = true
+uify-face.workspace = true
+uify-roto.workspace = true
+rtrb.workspace = true
+atomic_float.workspace = true
+tracing.workspace = true
+# nih-plug wraps CLAP + VST3 + standalone. Pin by commit in a follow-up commit
+# once we vet the current HEAD.
+# nih-plug = { git = "https://github.com/robbert-vdh/nih-plug", default-features = false, features = ["standalone"] }

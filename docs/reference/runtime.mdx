@@ -1,0 +1,41 @@
+---
+title: "Reference — Runtime"
+description: "Camera, inference, ring buffer."
+slug: "reference-runtime"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["reference", "runtime"]
+---
+
+Crate: `uify-runtime`. Owns all I/O and real-time bridging.
+
+## `camera::`
+
+`Backend` trait → per-platform impl:
+
+| Platform    | API              |
+| ----------- | ---------------- |
+| macOS / iOS | AVFoundation     |
+| Windows     | Media Foundation |
+| Linux       | V4L2             |
+| Android     | Camera2 (JNI)    |
+| Web         | `getUserMedia`   |
+
+Frames are delivered zero-copy on every platform where the OS supports it.
+
+## `inference::`
+
+ONNX Runtime baseline, opt-in EPs per platform:
+
+| Feature    | EP                     |
+| ---------- | ---------------------- |
+| `coreml`   | CoreML                 |
+| `directml` | DirectML               |
+| `nnapi`    | NNAPI                  |
+| (default)  | ORT default CPU + CUDA |
+
+## `ringbuf::`
+
+Wait-free SPSC ring of `Sample<G, C>` values. Single writer (vision thread),
+single reader (audio thread). See
+[architecture-threading](architecture-threading).

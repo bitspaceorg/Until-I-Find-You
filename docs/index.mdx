@@ -1,0 +1,56 @@
+---
+title: "Until I Find You — Documentation"
+description: "Knowledge base for UIFY, the motion tracking engine"
+slug: "index"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["index", "overview"]
+---
+
+**UIFY** (Until I Find You) is a modular, latency-first motion-tracking engine written in Rust. It produces time-indexed streams of geometric primitives — points, bounding boxes, 6DoF poses, contours, face landmarks — and ships them to other programs via OSC / MIDI / shared memory / C ABI, with a first-class CLAP plugin for sample-accurate DAW automation.
+
+## Start Here
+
+**[Skill](skill)** — self-contained, task-oriented entry point. Build, the tracker trait, all common API with signatures, manifold math cheat sheet, DAW-plugin example, gotchas. Read this first.
+
+## Documentation
+
+| Section                      | Purpose                                                  |
+| ---------------------------- | -------------------------------------------------------- |
+| [Skill](skill)               | Build-anything source-of-truth guide                     |
+| [Architecture](architecture) | System design, thread model, latency and accuracy budget |
+| [Reference](reference)       | Crate-level API contracts and implementation detail      |
+| [Development](development)   | Build system, platform support, contribution guide       |
+
+## Architecture
+
+| Page                                          | Topic                                                         |
+| --------------------------------------------- | ------------------------------------------------------------- |
+| [System Architecture](architecture)           | Layer diagram, crate dependency rules, design rationale       |
+| [Pipeline](architecture-pipeline)             | Source → Detector → Associator → Filter → Smoother → Sink     |
+| [Threading Model](architecture-threading)     | Vision / audio / UI thread separation, lock-free bridge       |
+| [Latency Budget](architecture-latency-budget) | Glass-to-parameter budget, measurement methodology            |
+| [Manifolds](architecture-manifolds)           | SO(3) / SE(3) / SL(3), tangent-space filtering, left-Jacobian |
+| [Extension Strategy](architecture-extension)  | How to add trackers, backends, transports                     |
+
+## Reference
+
+Grouped to mirror `crates/`.
+
+| Section                            | Covers                                                      |
+| ---------------------------------- | ----------------------------------------------------------- |
+| [Core](reference-core)             | `Tracker<G>`, `Sample`, manifolds, filters, pipeline stages |
+| [Trackers](reference-trackers)     | Point, bounding box, plane, face, rotoscope                 |
+| [Runtime](reference-runtime)       | Camera, inference, ring buffers                             |
+| [Transports](reference-transports) | OSC, MIDI / MPE, shared memory                              |
+| [Plugins](reference-plugins)       | CLAP (primary), AU / VST3 wrappers                          |
+| [FFI](reference-ffi)               | C ABI, Python / Swift / Kotlin / WASM bindings              |
+
+## Development
+
+| Page                                      | Topic                                         |
+| ----------------------------------------- | --------------------------------------------- |
+| [Build](development-build)                | Make + Nix + Cargo                            |
+| [Platform Behavior](development-platform) | macOS / Windows / Linux / iOS / Android / Web |
+| [Testing](development-testing)            | Property tests, synthetic GT suite, bench     |
+| [Contributing](development-contributing)  | How to add code and documentation             |

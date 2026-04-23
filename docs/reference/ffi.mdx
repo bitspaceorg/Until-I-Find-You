@@ -1,0 +1,35 @@
+---
+title: "Reference — FFI"
+description: "C ABI + language bindings (Python, Swift, Kotlin, WASM, Node)."
+slug: "reference-ffi"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["reference", "ffi", "bindings"]
+---
+
+Crate: `uify-ffi`. Produces `libuify.so` / `.dylib` / `.dll` and a
+generated C header at `include/uify.h`.
+
+## ABI versioning
+
+Every build exports `uify_abi_version()`. Consumers check at load time
+and refuse to link if the returned value is newer than they compile against.
+
+## Bindings
+
+| Language  | Tool           | Artifact                      |
+| --------- | -------------- | ----------------------------- |
+| Python    | `pyo3`         | `bindings/python/` wheel      |
+| Swift     | `UniFFI`       | `bindings/swift/` XCFramework |
+| Kotlin    | `UniFFI`       | `bindings/kotlin/` AAR        |
+| JS / WASM | `wasm-bindgen` | `bindings/wasm/` npm package  |
+| Node      | `napi-rs`      | `bindings/node/` npm package  |
+
+Each binding is a separate crate under `bindings/`. The core Rust crates
+do not depend on any binding.
+
+## Ownership
+
+All resources use create / destroy pairs. Rust never panics across the FFI
+boundary; errors are returned as integer codes with a thread-local last-error
+string.

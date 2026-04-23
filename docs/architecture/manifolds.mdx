@@ -1,0 +1,73 @@
+---
+title: "Manifolds"
+description: "SO(3) / SE(3) / SL(3) conventions, tangent-space filtering, left-Jacobian reset."
+slug: "architecture-manifolds"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["architecture", "math", "manifolds", "accuracy"]
+---
+
+The accuracy-critical math lives in `uify-core::manifolds`. Trackers that
+estimate rotations or rigid motions **must** run their filters in the
+tangent space of the appropriate Lie group. Component-wise averaging of
+quaternions or rotation matrices silently loses accuracy and produces
+non-orthonormal intermediate states that compound over time.
+
+## Groups we use
+
+| Group | Meaning             | Tracker(s)          | Tangent dim |
+| ----- | ------------------- | ------------------- | ----------- |
+| SO(2) | 2D rotation         | oriented bbox       | 1           |
+| SO(3) | 3D rotation         | plane, face         | 3           |
+| SE(2) | planar rigid motion | oriented bbox       | 3           |
+| SE(3) | 3D rigid motion     | plane, face         | 6           |
+| SL(3) | homography (det=1)  | plane (image-space) | 8           |
+
+Implementation reference:
+Sola, Deray, Atchuthan, _A micro Lie theory for state estimation in robotics_, 2021. We use the **right-trivialized** convention throughout: tangent vectors
+live at the current mean, `x ⊕ ξ = x ∘ exp(ξ)`, covariance resets on update
+via the left Jacobian.
+
+## Required property tests
+
+Every new group implementation must pass these tests before landing in
+`tests/manifold_identities.rs`:
+
+```
+exp(log(x))           ≈ x
+log(exp(ξ))           ≈ ξ
+x ⊖ x                 ≈ 0
+x ⊕ (y ⊖ x)           ≈ y
+(x ∘ y) ∘ z           ≈ x ∘ (y ∘ z)
+x ∘ x⁻¹               ≈ identity
+```
+
+The `proptest` harness samples group elements uniformly and tangent vectors
+near zero; any violation over 1e-5 is a failure.
+
+## EKF on a Lie group — one-liner
+
+```
+x_{k+1|k}   = f(x_k)                                      # propagate on group
+P_{k+1|k}   = F P_k Fᵀ + Q                                # tangent-space covariance
+y           = z ⊖ h(x_{k+1|k})                            # innovation in tangent
+K           = P Hᵀ (H P Hᵀ + R)⁻¹
+x_{k+1|k+1} = x_{k+1|k} ⊕ (K y)
+P_{k+1|k+1} = J (I − K H) P_{k+1|k} Jᵀ                    # J is the left-Jacobian reset
+```
+
+`J` is the left-Jacobian of the group; on small `ξ` it is close to identity,
+but on big innovations — occlusion-recovery, large rotations — skipping `J`
+gives visibly wrong covariances.
+
+## What accuracy looks like
+
+The synthetic GT suite renders known SE(3) trajectories in Blender. The
+baseline accuracy bar:
+
+- SE(3) pose: mean rotation error < 0.5°, mean translation error < 1% of
+  camera distance, over 95% of frames in a full GT sequence.
+- Point tracker: mean 2D error < 0.5 px sub-pixel refined.
+- Face pose: mean rotation error < 2°.
+
+Any change to the manifold layer must keep these bars.

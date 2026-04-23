@@ -1,0 +1,52 @@
+---
+title: "Latency Budget"
+description: "Glass-to-parameter budget, measurement methodology, expected numbers per platform."
+slug: "architecture-latency-budget"
+author: "rahulmnavneeth"
+date: "23 APR 2026"
+tags: ["architecture", "latency", "real-time"]
+---
+
+## Target
+
+| Stage                 | Typical      | Tightened (distilled + zero-copy) |
+| --------------------- | ------------ | --------------------------------- |
+| Camera capture → GPU  | 4–8 ms       | 2–3 ms                            |
+| Inference             | 5–15 ms      | 2–5 ms                            |
+| Filter + ring push    | <0.2 ms      | <0.2 ms                           |
+| Audio-thread pickup   | ≤ block      | sub-block (tangent interpolation) |
+| **Glass → parameter** | **15–25 ms** | **8–12 ms**                       |
+
+Below ~8 ms requires a 240 Hz camera or an event camera. Not worth pursuing
+until every other stage has been driven to its tightened number.
+
+## Measurement methodology
+
+- The capture backend stamps each frame with a **host-monotonic** timestamp
+  as close to photon arrival as the API allows. On AVFoundation that is
+  the `CMSampleBufferGetPresentationTimeStamp` converted to `mach_absolute_time`;
+  on V4L2 the `v4l2_buffer.timestamp` reinterpreted in `CLOCK_MONOTONIC`.
+- Every downstream stage records an exit timestamp against the same clock.
+- The audio thread, which owns its own clock via the CLAP host's time info,
+  reads `now_audio - sample.t` to get the true end-to-end latency.
+- Logged continuously through Tracy (`tracy-client` crate) so regressions
+  are visible per commit.
+
+## What consumes budget and what helps
+
+- **Camera → GPU copy**: biggest win from zero-copy. `CVPixelBuffer` on
+  Apple, DXGI shared textures on Windows, dma-buf on Linux. The tracker
+  never touches CPU pixel data on the hot path.
+- **Inference**: distillation (smaller, less accurate model trained to
+  mimic a big one) is usually the single largest optimization. FP16 +
+  platform EP (CoreML, DirectML, TensorRT) is free.
+- **Filter + ring**: already negligible. Not a target.
+- **Audio pickup**: tangent-space interpolation is free once it's coded;
+  it turns "sample arrives mid-block" from a source of jitter into
+  sub-block accuracy.
+
+## Budget ownership
+
+Each crate documents its own budget share in its reference page. Any change
+that regresses the per-stage budget by more than 20% requires a justification
+and a bench before it lands.
