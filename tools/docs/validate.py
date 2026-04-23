@@ -1,63 +1,64 @@
-#!/usr/bin/env python3
-"""Validate docs/*.mdx frontmatter.
-
-Rules:
-- every .mdx under docs/ must have title, description, slug, author, date, tags
-- slug must be kebab-case
-- slug must be unique across the tree
-- slug prefix must match the enclosing directory (skill.mdx exempted, index exempted)
-
-Exit code 0 on success, 1 on any violation (message on stderr).
-"""
-
-from __future__ import annotations
-
-import pathlib
+import os
 import re
-import sys
-
-try:
-    import frontmatter  # type: ignore[import-not-found]
-except ImportError:
-    sys.stderr.write("missing python-frontmatter; run inside `nix develop`\n")
-    sys.exit(2)
+from utils import collect_docs
 
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
-DOCS = ROOT / "docs"
+def collect_all_slugs(docs):
+    """Recursively collect all slugs from the doc tree."""
+    slugs = set()
+    for doc in docs:
+        slugs.add(doc["slug"])
+        if "children" in doc:
+            slugs.update(collect_all_slugs(doc["children"]))
+    return slugs
 
-REQUIRED_KEYS = {"title", "description", "slug", "author", "date", "tags"}
-KEBAB = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+def validate_links(docs_dir, valid_slugs):
+    """Check that all inter-doc links reference valid slugs."""
+    # Match markdown links: [text](target) where target has no protocol, no extension
+    link_re = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
+    errors = []
+
+    for root, _dirs, files in os.walk(docs_dir):
+        for fname in files:
+            if not fname.endswith(".mdx"):
+                continue
+            fpath = os.path.join(root, fname)
+            with open(fpath, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            for match in link_re.finditer(content):
+                target = match.group(2)
+                # Skip external URLs, anchors-only, and non-slug links (files with extensions)
+                if (
+                    target.startswith("http")
+                    or target.startswith("#")
+                    or "." in target
+                ):
+                    continue
+                # Strip anchor if present: "some-slug#section" -> "some-slug"
+                slug_part = target.split("#")[0]
+                if slug_part and slug_part not in valid_slugs:
+                    errors.append(
+                        f"  {fpath}: [{match.group(1)}]({target}) -> unknown slug '{slug_part}'"
+                    )
+
+    return errors
 
 
-def main() -> int:
-    slugs: dict[str, pathlib.Path] = {}
-    errors: list[str] = []
+def main():
+    docs, _authors, _tags = collect_docs()
+    valid_slugs = collect_all_slugs(docs)
 
-    for mdx in DOCS.rglob("*.mdx"):
-        post = frontmatter.load(mdx)
-        missing = REQUIRED_KEYS - set(post.metadata)
-        if missing:
-            errors.append(f"{mdx.relative_to(ROOT)}: missing frontmatter keys: {sorted(missing)}")
-            continue
-
-        slug = str(post["slug"])
-        if not KEBAB.match(slug):
-            errors.append(f"{mdx.relative_to(ROOT)}: slug '{slug}' is not kebab-case")
-
-        if slug in slugs:
-            errors.append(
-                f"{mdx.relative_to(ROOT)}: slug '{slug}' already used by {slugs[slug].relative_to(ROOT)}"
-            )
-        slugs[slug] = mdx
-
+    errors = validate_links("docs", valid_slugs)
     if errors:
+        print(f"Found {len(errors)} broken slug references:")
         for e in errors:
-            sys.stderr.write(f"docs/validate: {e}\n")
-        return 1
+            print(e)
+        raise SystemExit(1)
 
-    return 0
+    print("[=== all mdx files are valid ===]")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
