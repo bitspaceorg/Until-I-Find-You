@@ -46,15 +46,61 @@ def validate_links(docs_dir, valid_slugs):
     return errors
 
 
+def validate_mdx_syntax(docs_dir):
+    """Flag MDX hazards — bare `<` followed by a digit outside code blocks.
+
+    MDX parses `<X` as the start of a JSX element. `<0.2` crashes the
+    compiler: "Unexpected character `0` before name". Escape as `\\<` or
+    `&lt;`, or wrap the expression in backticks / a fenced code block.
+    """
+    hazard_re = re.compile(r"(?<!\\)<[0-9]")
+    errors = []
+
+    for root, _dirs, files in os.walk(docs_dir):
+        for fname in files:
+            if not fname.endswith(".mdx"):
+                continue
+            fpath = os.path.join(root, fname)
+            with open(fpath, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            in_fence = False
+            for lineno, raw in enumerate(lines, start=1):
+                if raw.lstrip().startswith("```"):
+                    in_fence = not in_fence
+                    continue
+                if in_fence:
+                    continue
+
+                # Blank out inline-code spans so `<0.2` in backticks is ignored.
+                stripped = re.sub(r"`[^`\n]*`", lambda m: " " * len(m.group()), raw)
+
+                for m in hazard_re.finditer(stripped):
+                    col = m.start() + 1
+                    errors.append(
+                        f"  {fpath}:{lineno}:{col}: unescaped '<{m.group()[1]}' "
+                        f"— MDX will parse as JSX. Use '\\<' or '&lt;', or wrap in backticks."
+                    )
+
+    return errors
+
+
 def main():
     docs, _authors, _tags = collect_docs()
     valid_slugs = collect_all_slugs(docs)
 
-    errors = validate_links("docs", valid_slugs)
-    if errors:
-        print(f"Found {len(errors)} broken slug references:")
-        for e in errors:
+    link_errors = validate_links("docs", valid_slugs)
+    syntax_errors = validate_mdx_syntax("docs")
+
+    if link_errors:
+        print(f"Found {len(link_errors)} broken slug references:")
+        for e in link_errors:
             print(e)
+    if syntax_errors:
+        print(f"Found {len(syntax_errors)} MDX syntax hazards:")
+        for e in syntax_errors:
+            print(e)
+    if link_errors or syntax_errors:
         raise SystemExit(1)
 
     print("[=== all mdx files are valid ===]")
