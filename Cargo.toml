@@ -21,7 +21,7 @@ edition = "2021"
 license = "Apache-2.0"
 rust-version = "1.85"
 authors = ["rahulmnavneeth"]
-repository = "https://github.com/bitspace/uify"
+repository = "https://gitlab.com/bitspaceorg/tools/until-i-find-you"
 
 [workspace.dependencies]
 # Internal

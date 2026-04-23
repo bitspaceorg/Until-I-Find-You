@@ -103,7 +103,7 @@ def collect_docs():
     authors = set()
     tags = set()
     branch = current_branch()
-    base_url = f"https://github.com/bitspace/uify/raw/{branch}"
+    base_url = f"https://gitlab.com/bitspaceorg/tools/until-i-find-you/-/raw/{branch}"
 
     docs = collect_docs_recursive("docs", base_url, slugs, authors, tags)
 
