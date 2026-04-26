@@ -1,8 +1,70 @@
 import os
+import re
 import subprocess
 import frontmatter
 
 REQUIRED_FIELDS = ["title", "description", "slug", "author", "date"]
+
+
+def _normalize_remote(remote):
+    """Normalize a git remote URL to https form, stripped of trailing .git."""
+    url = remote.strip()
+    if url.startswith("git@"):
+        host, _, path = url[len("git@"):].partition(":")
+        url = f"https://{host}/{path}"
+    elif url.startswith("ssh://"):
+        url = "https://" + url[len("ssh://"):].split("@", 1)[-1]
+    if url.endswith(".git"):
+        url = url[: -len(".git")]
+    return url
+
+
+def _raw_url_from_remote(remote, branch):
+    """Translate a git remote URL into the forge's raw-content base URL."""
+    url = _normalize_remote(remote)
+    m = re.match(r"https?://([^/]+)/(.+?)/?$", url)
+    if not m:
+        raise RuntimeError(f"Cannot parse remote URL: {remote!r}")
+    host, path = m.group(1), m.group(2)
+
+    if host == "github.com":
+        return f"https://github.com/{path}/raw/{branch}"
+    if host == "gitlab.com" or host.startswith("gitlab."):
+        return f"https://{host}/{path}/-/raw/{branch}"
+    if host == "bitbucket.org":
+        return f"https://bitbucket.org/{path}/raw/{branch}"
+
+    raise RuntimeError(
+        f"Unknown forge host {host!r} for remote {remote!r}. "
+        f"Set DOCS_BASE_URL to the raw-content URL prefix (no trailing slash)."
+    )
+
+
+def derive_base_url(branch):
+    """Resolve the raw-content base URL.
+
+    Resolution order:
+      1. DOCS_BASE_URL env var (verbatim, trailing slash trimmed).
+      2. Translation of `git remote get-url origin` for the current
+         working tree, mapped to the forge's raw URL pattern.
+    """
+    override = os.environ.get("DOCS_BASE_URL")
+    if override:
+        return override.rstrip("/")
+
+    try:
+        remote = subprocess.check_output(
+            ["git", "remote", "get-url", "origin"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        raise RuntimeError(
+            "Cannot determine docs base URL: no git remote 'origin' "
+            "and DOCS_BASE_URL is unset."
+        ) from e
+
+    return _raw_url_from_remote(remote, branch)
 
 
 def slug_from_path(file_path):
@@ -103,7 +165,7 @@ def collect_docs():
     authors = set()
     tags = set()
     branch = current_branch()
-    base_url = f"https://gitlab.com/bitspaceorg/tools/until-i-find-you/-/raw/{branch}"
+    base_url = derive_base_url(branch)
 
     docs = collect_docs_recursive("docs", base_url, slugs, authors, tags)
 
