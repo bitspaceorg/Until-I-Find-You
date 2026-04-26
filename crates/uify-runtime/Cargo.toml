@@ -15,6 +15,9 @@ parking_lot.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
+[dev-dependencies]
+nalgebra.workspace = true
+
 [features]
 default = []
 # Each backend is opt-in; the plugin binary picks what it needs per platform.

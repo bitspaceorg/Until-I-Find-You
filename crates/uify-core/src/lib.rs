@@ -15,5 +15,6 @@ pub mod pipeline;
 pub mod sample;
 pub mod tracker;
 
+pub use pipeline::{Sink, TrackerCommon};
 pub use sample::{Confidence, Sample, Timestamp};
 pub use tracker::{Tracker, TrackerError, TrackerOutput};

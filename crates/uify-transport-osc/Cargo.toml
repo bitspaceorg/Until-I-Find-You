@@ -8,5 +8,10 @@ description = "OSC transport: DAWs (Ableton, Bitwig, Reaper), Max, TouchDesigner
 
 [dependencies]
 uify-core.workspace = true
+nalgebra.workspace = true
+rosc.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+uify-point.workspace = true

@@ -13,6 +13,7 @@ members = [
   "crates/uify-transport-shm",
   "crates/uify-clap-plugin",
   "crates/uify-ffi",
+  "examples/pipeline",
 ]
 
 [workspace.package]
@@ -32,11 +33,15 @@ uify-plane = { path = "crates/uify-plane" }
 uify-face = { path = "crates/uify-face" }
 uify-roto = { path = "crates/uify-roto" }
 uify-runtime = { path = "crates/uify-runtime" }
+uify-transport-osc = { path = "crates/uify-transport-osc" }
 
 # Math
 nalgebra = { version = "0.33", default-features = false, features = ["std"] }
 num-traits = "0.2"
 approx = "0.5"
+
+# Transports
+rosc = "0.10"
 
 # Concurrency (real-time safe)
 rtrb = "0.3"
