@@ -3,7 +3,7 @@ title: "Reference — Core"
 description: "uify-core: Sample, Tracker trait, manifolds, filters, pipeline stages."
 slug: "reference-core"
 author: "rahulmnavneeth"
-date: "23 APR 2026"
+date: "26 APR 2026"
 tags: ["reference", "core"]
 ---
 
@@ -11,26 +11,48 @@ Crate: `uify-core`. I/O-free. Safe on any thread including the audio thread.
 
 ## Top-level
 
-- `Sample<G, C>` — time-indexed tracker output (value, covariance, confidence, timestamp).
+- `Sample<G, C>` — time-indexed tracker output (value, covariance,
+  confidence, timestamp).
 - `Timestamp` — host-monotonic nanoseconds.
 - `Confidence` — `[0, 1]` clamped.
-- `Tracker` — trait with `Geometry`, `Covariance`, `Measurement<'a>`, `step`, `reset`.
+- `Tracker` — trait with `Geometry`, `Covariance`, `Measurement<'a>`,
+  `step`, `reset`. `step` returns `TrackerOutput<G, C>` =
+  `Result<Option<Sample<G, C>>, TrackerError>`.
 - `TrackerError` — `Lost` / `Numerical` / `Backend`.
+- `Sink<G, C>` — trait with `write(&mut self, &Sample<G, C>)`. Decouples
+  trackers from concrete transports. Implemented by `OscPoint2DSink`,
+  `RingbufSink`, and any user-defined consumer.
+- `TrackerCommon<F: Clone>` — shared bookkeeping for trackers wrapping a
+  recursive filter. Holds the filter, an initial-state snapshot for
+  `reset`, and `last_t`. Exposes `dt_since(now)` and `reset()`.
 
 ## `manifolds::`
 
-- `LieGroup` trait — `identity`, `compose`, `inverse`, `exp`, `log`, `plus`, `minus`.
-- `so2`, `so3`, `se2`, `se3`, `sl3` — concrete groups.
+- `LieGroup` trait — `identity`, `compose`, `inverse`, `exp`, `log`,
+  `plus`, `minus`.
+- `so2`, `so3`, `se2`, `se3` — implemented with right-trivialized exp/log,
+  Taylor cutovers near identity, canonical-hemisphere log. Property tests
+  in `tests/manifold_identities.rs` enforce the four contract identities
+  for every group.
+- `sl3` — stub, will land when the planar detector pipeline needs it.
 
 See [architecture-manifolds](architecture-manifolds) for conventions and
 property-test requirements.
 
 ## `filters::`
 
-- `kalman` — classical linear KF, generic over state and measurement dim.
-- `ekf_manifold` — EKF on a Lie group, right-trivialized, left-Jacobian reset.
-- `rts_smoother` — offline backward pass.
+- `kalman::KalmanFilter<const N: usize>` — classical linear KF, generic
+  over state dim. Measurement dim is method-level: `update::<const M:
+usize>(h, z, r)`. Joseph form throughout so `Σ` stays SPD.
+- `ekf_manifold::Ekf3D` — manifold EKF hardcoded to SE(3) for now, with a
+  random-walk process model and a direct-pose measurement model. Joseph
+  form. Generalization to `EkfManifold<G, P, M>` (process + measurement
+  model traits) is deferred until a second consumer surfaces the right
+  trait shape.
+- `rts_smoother` — stub. Offline backward pass for batch-mode replays.
 
 ## `pipeline::`
 
 - `Stage` trait — generic stage in a tracker pipeline.
+- `Sink<G, C>` — see top-level.
+- `TrackerCommon<F>` — see top-level.

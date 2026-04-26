@@ -3,33 +3,68 @@ title: "Reference — Transports"
 description: "OSC, MIDI / MPE, shared memory."
 slug: "reference-transports"
 author: "rahulmnavneeth"
-date: "23 APR 2026"
+date: "26 APR 2026"
 tags: ["reference", "transports"]
 ---
 
-Every transport implements `Sink<G, C>` for the `G`s it makes sense for.
+Every transport implements `uify_core::Sink<G, C>` for the `G`s it makes
+sense for. The trait is `fn write(&mut self, sample: &Sample<G, C>) ->
+Result<(), Self::Error>`.
 
 ## OSC — `uify-transport-osc`
 
-Address schema (default; configurable):
+**Implemented**: `OscPoint2DSink` for `Sample<Vector2<f64>, Matrix2<f64>>`.
+**Not yet implemented**: bbox, pose, landmark, contour sinks.
+
+### `OscPoint2DSink`
+
+```rust
+use uify_transport_osc::OscPoint2DSink;
+use uify_core::Sink;
+
+let mut sink = OscPoint2DSink::new(
+    "127.0.0.1:0",                   // local: OS picks port
+    "127.0.0.1:9000",                // remote: OSC listener
+    "/uify/point/2d",                // OSC address
+)?;
+sink.write(&sample)?;                // any Sample<Vector2, Matrix2>
+```
+
+Each call to `write` sends one OSC message over UDP:
 
 ```
-/uify/<id>/point        fff       (x, y, z) or (x, y, 0)
-/uify/<id>/bbox         ffff f    (cx, cy, w, h, θ)
-/uify/<id>/pose         fff ffff  (tx, ty, tz, qx, qy, qz, qw)
-/uify/<id>/landmark/<i> fff       per-landmark
-/uify/<id>/confidence   f
-/uify/<id>/timestamp    h         nanoseconds, host-monotonic
+/<path>   ,hfff   <t_ns>   <x>   <y>   <confidence>
 ```
+
+| Arg | Type      | Source                 |
+| --- | --------- | ---------------------- |
+| `h` | OSC Long  | `sample.t.as_nanos()`  |
+| `f` | OSC Float | `sample.value.x` (f32) |
+| `f` | OSC Float | `sample.value.y` (f32) |
+| `f` | OSC Float | `sample.confidence`    |
+
+The timestamp payload is the host-monotonic nanosecond value, **not** an
+OSC time-tag. The same monotonic clock must be used at all ends of the
+pipeline.
+
+`Vector2<f64>` components are cast to `f32` on the wire — losing about
+seven decimal digits, fine for image-plane pixel coordinates. If a future
+geometry needs full f64 precision, it'd be a separate sink type using
+`OscType::Double`.
+
+The covariance field on `Sample` is **not** sent. It's available for
+in-process consumers via the `Sink` trait but isn't part of the OSC schema.
 
 ## MIDI / MPE — `uify-transport-midi`
 
-Per-note expressive control. Hand-to-note mapping uses MPE's per-note
-pitch-bend (X), timbre (Y), and pressure (Z). Note-on / note-off are driven
-by the GestureFSM in the consumer.
+**Stub.** The crate exists in the workspace but `lib.rs` is a placeholder.
+Planned: per-note expressive control via MPE, with hand-to-note mapping
+using per-note pitch-bend (X), timbre (Y), and pressure (Z); note-on /
+note-off driven by a gesture FSM in the consumer.
 
 ## Shared memory — `uify-transport-shm`
 
-POSIX / Win32 shared-memory segment with a header + ring of `Sample` records.
-For same-machine consumers that need µs-scale latency. See
-`reference/transports/shm.mdx` (TODO) for the binary layout.
+**Stub.** Planned: POSIX / Win32 shared-memory segment with a header + ring
+of `Sample` records, for same-machine consumers that need µs-scale latency
+across process boundaries. The intra-process equivalent is already
+implemented at `uify_runtime::ringbuf::channel`.

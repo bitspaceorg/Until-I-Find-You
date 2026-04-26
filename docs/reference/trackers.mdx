@@ -3,26 +3,55 @@ title: "Reference — Trackers"
 description: "Built-in trackers: point, bounding box, plane, face, rotoscope."
 slug: "reference-trackers"
 author: "rahulmnavneeth"
-date: "23 APR 2026"
+date: "26 APR 2026"
 tags: ["reference", "trackers"]
 ---
 
-Each tracker is an independent crate under `crates/uify-<name>/` implementing `uify_core::Tracker`.
+Each tracker is an independent crate under `crates/uify-<name>/`
+implementing `uify_core::Tracker`. Concrete trackers wrap a filter via
+`uify_core::TrackerCommon<F>` so dt-since-last-update, reset, and the
+filter snapshot are shared bookkeeping.
 
-| Crate        | `G`                               | Online detector                             |
-| ------------ | --------------------------------- | ------------------------------------------- |
-| `uify-point` | `Vec2` / `Vec3`                   | color-blob, learned keypoint, or user seed  |
-| `uify-bbox`  | `(SE(2), w, h)` / `(x,y,w,h)`     | YOLOv8 / RT-DETR                            |
-| `uify-plane` | `SE(3)` (+ homography in SL(3))   | SuperPoint + LightGlue; PnP with intrinsics |
-| `uify-face`  | landmarks + `SE(3)` + blendshapes | MediaPipe FaceLandmarker (ONNX export)      |
-| `uify-roto`  | contour / signed-distance mask    | SAM2 video segmentation                     |
+| Crate        | `G`                             | Status      | Filter                   |
+| ------------ | ------------------------------- | ----------- | ------------------------ |
+| `uify-point` | `Vector2<f64>`                  | implemented | `KalmanFilter<4>`        |
+| `uify-bbox`  | `Bbox` (cx, cy, w, h)           | implemented | `KalmanFilter<6>` (AABB) |
+| `uify-plane` | `Se3`                           | smoother    | `Ekf3D` (manifold EKF)   |
+| `uify-face`  | landmarks + `Se3` + blendshapes | stub        | —                        |
+| `uify-roto`  | contour / signed-distance mask  | stub        | —                        |
 
-Each tracker owns:
+### What "smoother" / "stub" mean
 
-- its detector
-- its measurement-to-state mapping (`h`)
-- its process model (`f`)
-- a default filter configuration
+- **Smoother** (`uify-plane`): consumes already-extracted SE(3) pose
+  measurements and produces smoothed `Sample<Se3, Cov6>`. The detector
+  pipeline (homography + PnP, SuperPoint, LightGlue) is **not** part of
+  what's shipped — it lives upstream of this crate and depends on
+  `uify-runtime::inference` which is itself a stub.
+- **Stub**: only a placeholder type exists; no filter, no measurement
+  type, no integration tests yet.
+
+### Bounding box
+
+`uify-bbox::BboxTracker2D` is **axis-aligned** with state
+`(cx, cy, w, h, vcx, vcy) ∈ ℝ⁶`. Position is constant-velocity; size is
+random-walk. An oriented variant (`(SE(2), w, h)`) will land separately
+once a use case justifies the extra DOFs.
+
+### Plane
+
+`uify-plane::PlaneTracker` wraps `uify_core::filters::ekf_manifold::Ekf3D`
+with random-walk predict and direct-pose update. It's the layer a host
+pipeline plugs into once a detector exists.
+
+### Each tracker owns
+
+- its measurement type (e.g. `PointMeasurement`, `BboxMeasurement`,
+  `PlaneMeasurement`)
+- its measurement-to-state mapping (`H` matrix for the linear KF, identity
+  for the manifold EKF)
+- its process model (constant-velocity for point/bbox; random walk for
+  plane)
+- a default filter configuration via the constructor
 
 Tracker-specific reference pages (TODO):
 

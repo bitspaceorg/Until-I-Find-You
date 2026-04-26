@@ -22,13 +22,13 @@ A Rust engine that turns camera input into a time-indexed stream of geometric
 primitives, with optional real-time transport to other programs. Five built-in
 trackers, all implementing one trait:
 
-| Tracker      | Geometry `G`             | Typical consumer                     |
-| ------------ | ------------------------ | ------------------------------------ |
-| point (ball) | `Vec2` / `Vec3`          | audio automation, cursor control     |
-| bounding box | `(SE(2), w, h)`          | detection gating, VFX masks          |
-| plane        | `SE(3)` + homography     | AR, virtual camera body, compositing |
-| face         | landmarks + `SE(3)` pose | expression capture, retargeting      |
-| rotoscope    | contour / mask           | matte extraction, VFX                |
+| Tracker      | Geometry `G`             | Status      | Typical consumer                     |
+| ------------ | ------------------------ | ----------- | ------------------------------------ |
+| point (ball) | `Vec2` (2D)              | implemented | audio automation, cursor control     |
+| bounding box | `(cx, cy, w, h)` AABB    | implemented | detection gating, VFX masks          |
+| plane        | `SE(3)` (smoother only)  | partial     | AR, virtual camera body, compositing |
+| face         | landmarks + `SE(3)` pose | stub        | expression capture, retargeting      |
+| rotoscope    | contour / mask           | stub        | matte extraction, VFX                |
 
 Every tracker produces `Sample<G, C>` values — value, tangent-space
 covariance, confidence, host-monotonic timestamp.
@@ -78,31 +78,41 @@ around them — detector, associator, filter, smoother, sink — is the same sha
 ## Minimal pipeline (point tracker)
 
 ```rust
-use uify_core::Sample;
-use uify_point::PointTracker;
+use nalgebra::{Matrix2, Matrix4, Vector2, Vector4};
+use uify_core::{Sink, Tracker};
+use uify_point::{PointMeasurement, PointTracker2D};
 
-// Construct, feed frames, get samples.
-let mut t = PointTracker::new(/* config */);
+let mut tracker = PointTracker2D::new(
+    Vector4::zeros(),               // initial state (px, py, vx, vy)
+    Matrix4::identity(),            // initial covariance
+    Matrix4::identity() * 1e-3,     // process noise (per second)
+    Matrix2::identity() * 1e-3,     // measurement noise
+);
 
 loop {
-    let frame = camera.next_frame()?;                // runtime::camera
-    if let Some(sample) = t.step(&frame)? {          // Sample<Vec2, Mat2>
-        sink.send(sample)?;                           // OSC / MIDI / shm / CLAP param
+    let frame = camera.next_frame()?;                  // runtime::camera::Camera
+    let detection: Vector2<f64> = inference.infer(&frame)?;
+    let measurement = PointMeasurement { t: frame.t, position: detection };
+    if let Some(sample) = tracker.step(measurement)? { // Sample<Vec2, Mat2>
+        sink.write(&sample)?;                          // any Sink<Vec2, Mat2>
     }
 }
 ```
 
-## DAW hand-control example (the flagship)
+## End-to-end example
 
-```
-Camera → HandLandmarker → GestureFSM → ParameterMap → CLAP plugin params
-                              │
-                              └─ states: idle, grab, hold, release
+`examples/pipeline/` ties it all together: synthetic camera → constant
+inference → `PointTracker2D` → `RingbufSink` → `RingbufSource` →
+`OscPoint2DSink` → UDP. Run it with:
+
+```bash
+cargo run -p uify-pipeline-example
 ```
 
-The `GestureFSM` is a _consumer_ of tracker samples, not part of the tracker.
-That keeps the same hand tracker reusable for non-DAW consumers. See
-`examples/daw-hand-control/` for the full source.
+A DAW-targeted gesture pipeline (HandLandmarker → GestureFSM →
+ParameterMap → CLAP plugin params) is a future addition; the gesture FSM
+will live as a _consumer_ of tracker samples, not part of any tracker, so
+the same hand tracker can drive non-DAW consumers too.
 
 ## Latency + accuracy rules of thumb
 

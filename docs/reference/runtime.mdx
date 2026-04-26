@@ -3,7 +3,7 @@ title: "Reference — Runtime"
 description: "Camera, inference, ring buffer."
 slug: "reference-runtime"
 author: "rahulmnavneeth"
-date: "23 APR 2026"
+date: "26 APR 2026"
 tags: ["reference", "runtime"]
 ---
 
@@ -11,7 +11,27 @@ Crate: `uify-runtime`. Owns all I/O and real-time bridging.
 
 ## `camera::`
 
-`Backend` trait → per-platform impl:
+The `Camera` trait + `Frame<'a>` lend-out shape:
+
+```rust
+pub trait Camera {
+    type Error;
+    fn next_frame(&mut self) -> Result<Frame<'_>, Self::Error>;
+}
+
+pub struct Frame<'a> {
+    pub t: Timestamp,
+    pub width: u32,
+    pub height: u32,
+    pub format: FrameFormat,         // Rgba8 | Bgra8 | Gray8
+    pub data: &'a [u8],
+}
+```
+
+Reference impl: `SyntheticCamera` produces fixed-cadence frames with
+per-frame index bytes — useful for tests, demos, and offline pipelines.
+
+**Real backends are not yet implemented.** Planned:
 
 | Platform    | API              |
 | ----------- | ---------------- |
@@ -21,21 +41,56 @@ Crate: `uify-runtime`. Owns all I/O and real-time bridging.
 | Android     | Camera2 (JNI)    |
 | Web         | `getUserMedia`   |
 
-Frames are delivered zero-copy on every platform where the OS supports it.
+Backends will deliver zero-copy where the OS supports it (CVPixelBuffer
+on Apple, dma-buf on Linux). Cross-thread frame ownership will need a
+`FrameHandle` type beyond what `Frame<'a>` covers — to be added when a
+backend lands.
 
 ## `inference::`
 
-ONNX Runtime baseline, opt-in EPs per platform:
+The `Inference` trait:
 
-| Feature    | EP                     |
-| ---------- | ---------------------- |
-| `coreml`   | CoreML                 |
-| `directml` | DirectML               |
-| `nnapi`    | NNAPI                  |
-| (default)  | ORT default CPU + CUDA |
+```rust
+pub trait Inference {
+    type Output;
+    type Error;
+    fn infer(&mut self, frame: &Frame<'_>) -> Result<Self::Output, Self::Error>;
+}
+```
+
+Reference impl: `ConstantInference<O>` returns a fixed clone — useful for
+wiring downstream code against a deterministic upstream signal.
+
+**ONNX Runtime + per-platform EPs (CoreML / DirectML / NNAPI / XNNPACK /
+TensorRT / WebGPU) are not yet implemented.** The `Cargo.toml` reserves
+`[features]` flags (`onnx`, `coreml`, `directml`, `nnapi`) for when they
+land.
 
 ## `ringbuf::`
 
-Wait-free SPSC ring of `Sample<G, C>` values. Single writer (vision thread),
-single reader (audio thread). See
-[architecture-threading](architecture-threading).
+Wait-free SPSC ring of `Sample<G, C>` values. Single writer (vision
+thread), single reader (audio thread). Built on `rtrb`.
+
+```rust
+use uify_runtime::ringbuf::{channel, RingbufError};
+use uify_core::Sink;
+
+let (mut tx, mut rx) = channel::<Vector2<f64>, Matrix2<f64>>(64);
+
+// Producer side: implements `Sink<G, C>`.
+tx.write(&sample)?;                  // RingbufError::Full if consumer is behind
+
+// Consumer side: wait-free pop.
+while let Some(s) = rx.pop() {
+    // process s
+}
+```
+
+Allocation-free after `channel` is constructed for fixed-size geometries
+(`Vector2`, `Vector3`, `Bbox`, `Se3`). Variable-size geometries (contours,
+landmark sets) will need an arena strategy — not yet implemented.
+
+`RingbufError::Full` policy: the new sample is dropped (drop-newest).
+Drop-oldest would mask consumer starvation; drop-newest at least surfaces
+it in logs. See [architecture-threading](architecture-threading) for the
+full real-time discipline.
